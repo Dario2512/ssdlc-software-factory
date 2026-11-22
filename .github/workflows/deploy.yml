@@ -1,0 +1,106 @@
+# Deploy, behind a human gate. Every push to main builds the site; the deploy job uses the
+# "github-pages" environment, which has a required reviewer. Nothing reaches production
+# until a named person clicks "Approve and deploy". The approval is written to the audit log
+# as a human decision: deploy-to-production.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    name: deploy to production
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: pages
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  record:
+    name: record the human decision
+    needs: [build, deploy]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Who approved, and which ticket shipped
+        id: who
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          approvals="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals")"
+          approver="$(jq -r '[.[] | select(.state=="approved")][0].user.login // empty' <<<"$approvals")"
+          rejecter="$(jq -r '[.[] | select(.state=="rejected")][0].user.login // empty' <<<"$approvals")"
+          comment="$(jq -r '[.[]][0].comment // ""' <<<"$approvals" | tr '\n' ' ' | cut -c1-300)"
+          ticket="$(printf '%s' "${MESSAGE:-}" | grep -oiE '(closes|fixes|resolves) #[0-9]+|ticket #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
+          if [ -n "$approver" ]; then actor="$approver"; result="approved"
+          elif [ -n "$rejecter" ]; then actor="$rejecter"; result="rejected"
+          else actor="nobody"; result="not-approved"; fi
+          {
+            echo "actor=${actor}"
+            echo "result=${result}"
+            echo "ticket=${ticket}"
+            echo "comment=${comment}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Deploy of ${GITHUB_SHA::7}: ${result} by ${actor} (ticket #${ticket:-none})."
+
+      - name: "Harness: audit log"
+        uses: ./.github/actions/audit-log
+        env:
+          AUDIT_KIND: human-decision
+          AUDIT_ACTOR: ${{ steps.who.outputs.actor }}
+          AUDIT_ROLE: human
+          AUDIT_ACTION: production-deploy
+          AUDIT_DECISION: deploy-to-production
+          AUDIT_TICKET: ${{ steps.who.outputs.ticket }}
+          AUDIT_RESULT: ${{ steps.who.outputs.result }} (deploy job ${{ needs.deploy.result }})
+          AUDIT_DETAILS: ${{ steps.who.outputs.comment }}
+        with:
+          app-client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          app-private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
