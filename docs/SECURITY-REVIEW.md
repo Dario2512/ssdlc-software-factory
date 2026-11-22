@@ -8,6 +8,21 @@ the pull request, so the pull request cannot weaken it.
 Approve only if **every** check below holds. Otherwise request changes and say which check
 failed, with the file and line.
 
+## Two kinds of pull request
+
+The workflow decides which kind this is from GitHub's own data (author and branch), never
+from the PR text, and writes it to `.factory/context.md`.
+
+- **Agent PR** (branch `agent/*`, author = the factory bot): apply checks 1 to 7.
+- **Human harness PR** (a person changes the factory itself: workflows, scripts, docs):
+  checks 1 and 2 do not apply, since humans may change the harness and need no ticket.
+  Apply checks 3 to 7 **and check 8**.
+
+8. **No weakened controls** (human harness PRs). The change must not loosen any harness
+   control: token permissions, pinned SHAs or versions, the scope guard, the trust check,
+   the cost cap, the kill switch, the human gate, the secret scan, the audit log, or this
+   brief. Tightening a control, or documentation that matches the code, is fine.
+
 ## Checks
 
 1. **Scope.** Only files an agent may change were touched (see `AGENTS.md`): posts, pages,
