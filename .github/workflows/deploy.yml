@@ -72,6 +72,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MESSAGE: ${{ github.event.head_commit.message }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
         run: |
           set -euo pipefail
           approvals="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals")"
@@ -81,6 +82,10 @@ jobs:
           ticket="$(printf '%s' "${MESSAGE:-}" | grep -oiE '(closes|fixes|resolves) #[0-9]+|ticket #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
           if [ -n "$approver" ]; then actor="$approver"; result="approved"
           elif [ -n "$rejecter" ]; then actor="$rejecter"; result="rejected"
+          elif [ "$DEPLOY_RESULT" = "success" ]; then
+            # The deploy job only runs after an approval, but GitHub keeps approval history
+            # per run attempt, so a re-run (attempt > 1) has none. Say so instead of guessing.
+            actor="unknown-approver"; result="approved (approver not visible in re-run attempt ${GITHUB_RUN_ATTEMPT})"
           else actor="nobody"; result="not-approved"; fi
           {
             echo "actor=${actor}"
