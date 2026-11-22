@@ -1,0 +1,59 @@
+# The pipeline: red or green. Its "ci" job is a required check on main.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out (full history, for the secret scan)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.14.0
+          cache: npm
+
+      - name: Install exactly what the lockfile says
+        run: npm ci --ignore-scripts
+
+      - name: "Harness: pinned dependencies"
+        run: npm run check:pinned
+
+      - name: "Harness: no known vulnerable dependencies"
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Install gitleaks
+        uses: ./.github/actions/setup-gitleaks
+
+      - name: "Harness: secret scan of the whole git history"
+        run: gitleaks git --no-banner --redact --verbose .
+
+      - name: "Guardrail: agent pull requests stay in scope"
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git diff --name-only "origin/${BASE_REF}...HEAD" > "${RUNNER_TEMP}/changed.txt"
+          node scripts/check-scope.mjs "${RUNNER_TEMP}/changed.txt"
+
+      - name: Build and test the site
+        run: npm test
