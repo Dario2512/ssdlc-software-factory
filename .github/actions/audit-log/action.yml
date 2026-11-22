@@ -1,0 +1,55 @@
+name: audit-log
+description: >-
+  Appends one record to the factory's audit log: audit/YYYY-MM.jsonl on the audit-log branch.
+  The branch is protected against force pushes and deletion, so the log is append-only.
+  Mints its own short-lived token that can only write repository contents.
+inputs:
+  app-client-id:
+    description: Client ID of the factory GitHub App
+    required: true
+  app-private-key:
+    description: Private key of the factory GitHub App
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Mint a contents-only token for the audit write
+      id: token
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        client-id: ${{ inputs.app-client-id }}
+        private-key: ${{ inputs.app-private-key }}
+        repositories: ${{ github.event.repository.name }}
+        permission-contents: write
+
+    - name: Append the record
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.token.outputs.token }}
+        APP_SLUG: ${{ steps.token.outputs.app-slug }}
+      run: |
+        set -euo pipefail
+        record="$(node "${GITHUB_WORKSPACE}/scripts/audit-record.mjs")"
+        echo "Audit record: ${record}"
+        month="$(date -u +%Y-%m)"
+        dir="$(mktemp -d)"
+        git -C "$dir" init -q
+        git -C "$dir" config user.name "${APP_SLUG}[bot]"
+        git -C "$dir" config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+        remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        for attempt in 1 2 3 4 5; do
+          git -C "$dir" fetch -q --depth 1 "$remote" audit-log
+          git -C "$dir" checkout -q -B audit-log FETCH_HEAD
+          mkdir -p "$dir/audit"
+          printf '%s\n' "$record" >> "$dir/audit/${month}.jsonl"
+          git -C "$dir" add audit
+          git -C "$dir" commit -q -m "audit: ${AUDIT_ROLE:-?} ${AUDIT_ACTION:-?} (ticket #${AUDIT_TICKET:-none}, run ${GITHUB_RUN_ID})"
+          if git -C "$dir" push -q "$remote" audit-log; then
+            echo "Appended to audit/${month}.jsonl on branch audit-log."
+            exit 0
+          fi
+          echo "Push raced with another writer, retrying (${attempt})..."
+          sleep $((attempt * 2))
+        done
+        echo "::error::Could not append to the audit log"
+        exit 1
