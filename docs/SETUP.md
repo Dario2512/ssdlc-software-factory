@@ -19,7 +19,9 @@ scripts/setup-repo.sh Dario2512/ssdlc-software-factory Dario2512
    <https://github.com/settings/apps/new?name=dario-ssdlc-factory&url=https%3A%2F%2Fgithub.com%2FDario2512%2Fssdlc-software-factory&public=false&webhook_active=false&contents=write&pull_requests=write&issues=write>
 2. **Create GitHub App**. Copy the **Client ID**, then:
    `gh variable set FACTORY_APP_CLIENT_ID --repo Dario2512/ssdlc-software-factory --body <client-id>`
-3. **Generate a private key** (a `.pem` downloads), then store it and delete the file:
+3. **Generate a private key** on the app's key page
+   (<https://github.com/settings/apps/dario-ssdlc-factory/key_pairs>; a `.pem` downloads),
+   then store it and delete the file:
    ```bash
    gh secret set FACTORY_APP_PRIVATE_KEY --repo Dario2512/ssdlc-software-factory < ~/Downloads/dario-ssdlc-factory.*.pem
    rm ~/Downloads/dario-ssdlc-factory.*.pem
