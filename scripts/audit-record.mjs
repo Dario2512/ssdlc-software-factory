@@ -37,6 +37,12 @@ const record = {
   commit: env.AUDIT_COMMIT || env.GITHUB_SHA || null,
 };
 
+function relativePath(p) {
+  const ws = env.GITHUB_WORKSPACE ? env.GITHUB_WORKSPACE.replace(/\/$/, "") + "/" : null;
+  if (ws && p.startsWith(ws)) return p.slice(ws.length);
+  return p.replace(/^\/home\/runner\/work\/[^/]+\/[^/]+\//, "");
+}
+
 const file = env.AUDIT_EXECUTION_FILE;
 if (file && existsSync(file)) {
   try {
@@ -51,7 +57,7 @@ if (file && existsSync(file)) {
           if (c.type !== "tool_use") continue;
           tools[c.name] = (tools[c.name] || 0) + 1;
           const p = c.input?.file_path || c.input?.path;
-          if (p) files.add(String(p).replace(/^.*?\/(content|src|test|docs|\.factory)\//, "$1/"));
+          if (p) files.add(relativePath(String(p)));
         }
       }
       if (m.type === "result") {
