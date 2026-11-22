@@ -1,0 +1,19 @@
+{
+  "name": "ssdlc-field-notes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A static site kept alive by an agent factory (SSDLC project, UPT 2026/2027).",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node src/build.mjs",
+    "test": "node src/build.mjs && node --test test/*.test.mjs",
+    "check:pinned": "node scripts/check-pinned.mjs",
+    "check:scope": "node scripts/check-scope.mjs"
+  },
+  "dependencies": {
+    "marked": "18.1.3"
+  }
+}
