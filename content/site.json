@@ -1,0 +1,9 @@
+{
+  "title": "SSDLC Field Notes",
+  "description": "Short notes on building software securely, written and shipped by an agent factory. Every change on this site is a commit an agent made.",
+  "footer": "Built by an agent factory · every change is a reviewed pull request · SSDLC, UPT 2026/2027",
+  "nav": [
+    { "label": "Home", "href": "index.html" },
+    { "label": "About", "href": "about.html" }
+  ]
+}
