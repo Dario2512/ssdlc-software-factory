@@ -61,7 +61,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NUMBER: ${{ github.event.issue.number }}
           REASON: ${{ steps.gate.outputs.reason }}
-        run: gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "🛑 The factory did not start: ${REASON}."
+        run: |
+          gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "🛑 The factory did not start: ${REASON}."
 
   write:
     name: write
