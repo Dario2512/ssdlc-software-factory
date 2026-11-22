@@ -1,0 +1,16 @@
+# Keeps pinned versions current on purpose: Dependabot opens the PR, the pipeline tests it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    versioning-strategy: increase
