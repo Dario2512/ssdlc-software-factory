@@ -9,10 +9,10 @@ APPROVER="${2:-${REPO%%/*}}"
 api() { gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "$@"; }
 step() { printf '\n== %s\n' "$*"; }
 
-step "Repository settings: squash-only merges, auto-merge, delete merged branches"
+step "Repository settings: squash (agent PRs) or rebase (human PRs, keeps each commit) merges, auto-merge, delete merged branches"
 api -X PATCH "repos/${REPO}" \
   -F allow_auto_merge=true -F delete_branch_on_merge=true \
-  -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false \
+  -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=true \
   -F has_wiki=false -F has_projects=false >/dev/null
 
 step "Secret scanning and push protection"
@@ -46,7 +46,7 @@ else
   echo "  exists"
 fi
 
-step "Ruleset: main accepts merges only through a PR with ci and agent-review green (no bypass)"
+step "Ruleset: main accepts merges only through a PR (linear history) with ci and agent-review green (no bypass)"
 ruleset_main='{
   "name": "protect-main",
   "target": "branch",
@@ -63,7 +63,7 @@ ruleset_main='{
       "require_code_owner_review": false,
       "require_last_push_approval": false,
       "required_review_thread_resolution": false,
-      "allowed_merge_methods": ["squash"]}},
+      "allowed_merge_methods": ["squash", "rebase"]}},
     {"type": "required_status_checks", "parameters": {
       "strict_required_status_checks_policy": false,
       "do_not_enforce_on_create": false,
